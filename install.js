@@ -13,14 +13,14 @@ module.exports = {
         }
       }
     },
-    // Install Liquid Audio dependencies from requirements.txt (will use existing PyTorch)
+    // Install Liquid Audio dependencies from requirements.txt (PyTorch already installed from torch.js)
     {
       method: "shell.run",
       params: {
         venv: "env",
         message: [
-          "uv pip install gradio transformers accelerate librosa numba llvmlite",
-          "uv pip install liquid-audio"
+          "uv pip install -r requirements.txt --no-deps",
+          "uv pip install gradio transformers accelerate librosa sentencepiece"
         ],
       }
     },
