@@ -41,15 +41,13 @@ git clone https://huggingface.co/LiquidAI/LFM2.5-Audio-1.5B ./models/LFM2.5-Audi
 
 ## Configuration Options
 
-The command-line argument sets the MODEL_PATH environment variable before models are loaded, which the `get_model_path()` function then reads. This ensures the documented precedence order works correctly.
+You can specify the model path in three ways, with the following priority:
 
 ### 1. Command-Line Argument (Highest Priority)
 
 ```bash
 python app.py --model-path /path/to/your/model
 ```
-
-This sets the `MODEL_PATH` environment variable internally before model loading begins.
 
 ### 2. Environment Variable
 

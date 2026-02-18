@@ -26,7 +26,14 @@ def get_model_path():
     return DEFAULT_MODEL_PATH
 
 def load_models():
-    """Load the Liquid Audio model and processor from local folder, falling back to Hugging Face if not found locally. Returns a tuple of (model, processor)."""
+    """
+    Load the Liquid Audio model and processor.
+    
+    Attempts to load from local folder first, falling back to Hugging Face if not found locally.
+    
+    Returns:
+        tuple: A tuple of (model, processor)
+    """
     global model, processor
     if model is None or processor is None:
         model_path = get_model_path()
