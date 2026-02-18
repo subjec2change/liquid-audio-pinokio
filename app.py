@@ -363,12 +363,12 @@ if __name__ == "__main__":
         "--model-path",
         type=str,
         default=None,
-        help=f"Path to local model directory. Overrides MODEL_PATH env var. Defaults to {DEFAULT_MODEL_PATH}"
+        help=f"Path to local model directory. Overrides MODEL_PATH env var. Defaults to {DEFAULT_MODEL_PATH}."
     )
     parser.add_argument(
         "--no-share",
         action="store_true",
-        help="Run locally without creating a public shareable link (default: share is enabled)"
+        help="Run locally without creating a public shareable link (default: share is enabled)."
     )
     args = parser.parse_args()
     
