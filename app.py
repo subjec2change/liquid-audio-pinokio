@@ -45,8 +45,8 @@ def load_models():
     if model is None or processor is None:
         model_path = get_model_path()
         
-        # Check if the model path exists and is a directory
-        if os.path.exists(model_path) and os.path.isdir(model_path):
+        # Check if the model path is a valid directory
+        if os.path.isdir(model_path):
             print(f"Loading models from local path: {model_path}")
             processor = LFM2AudioProcessor.from_pretrained(model_path).eval()
             model = LFM2AudioModel.from_pretrained(model_path).eval()
@@ -363,7 +363,7 @@ if __name__ == "__main__":
         "--model-path",
         type=str,
         default=None,
-        help=f"Path to local model directory (overrides MODEL_PATH env var; defaults to {DEFAULT_MODEL_PATH})"
+        help=f"Path to local model directory. Overrides MODEL_PATH env var. Defaults to {DEFAULT_MODEL_PATH}"
     )
     parser.add_argument(
         "--no-share",
