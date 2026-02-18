@@ -349,14 +349,9 @@ if __name__ == "__main__":
         help=f"Path to local model directory (default: {DEFAULT_MODEL_PATH} or MODEL_PATH env var)"
     )
     parser.add_argument(
-        "--share",
-        action="store_true",
-        help="Create a public shareable link"
-    )
-    parser.add_argument(
         "--no-share",
         action="store_true",
-        help="Do not create a public shareable link"
+        help="Run locally without creating a public shareable link (default: share is enabled)"
     )
     args = parser.parse_args()
     
