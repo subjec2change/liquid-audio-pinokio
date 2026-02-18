@@ -16,7 +16,7 @@ processor = None
 DEFAULT_MODEL_PATH = "./models/LFM2.5-Audio-1.5B"
 
 def get_model_path():
-    """Get the model path from environment variable or default path"""
+    """Get the model path from environment variable or default path. Returns the path as a string."""
     # Check environment variable (may be set by command-line argument)
     env_path = os.environ.get("MODEL_PATH")
     if env_path:
@@ -26,7 +26,7 @@ def get_model_path():
     return DEFAULT_MODEL_PATH
 
 def load_models():
-    """Load the Liquid Audio model and processor from local folder"""
+    """Load the Liquid Audio model and processor from local folder, falling back to Hugging Face if not found locally."""
     global model, processor
     if model is None or processor is None:
         model_path = get_model_path()
