@@ -16,7 +16,14 @@ processor = None
 DEFAULT_MODEL_PATH = "./models/LFM2.5-Audio-1.5B"
 
 def get_model_path():
-    """Get the model path from environment variable or use default path."""
+    """
+    Get the model path for loading the ML model.
+    
+    Checks the MODEL_PATH environment variable first, falling back to DEFAULT_MODEL_PATH if not set.
+    
+    Returns:
+        str: The resolved model path.
+    """
     # Check environment variable (may be set by command-line argument)
     env_path = os.environ.get("MODEL_PATH")
     if env_path:
@@ -38,13 +45,16 @@ def load_models():
     if model is None or processor is None:
         model_path = get_model_path()
         
-        # Check if the model path exists
-        if os.path.exists(model_path):
+        # Check if the model path exists and is a directory
+        if os.path.exists(model_path) and os.path.isdir(model_path):
             print(f"Loading models from local path: {model_path}")
             processor = LFM2AudioProcessor.from_pretrained(model_path).eval()
             model = LFM2AudioModel.from_pretrained(model_path).eval()
         else:
-            print(f"Local model path not found: {model_path}")
+            if os.path.exists(model_path):
+                print(f"Local model path exists but is not a directory: {model_path}")
+            else:
+                print(f"Local model path not found: {model_path}")
             print("Falling back to downloading from Hugging Face...")
             HF_REPO = "LiquidAI/LFM2.5-Audio-1.5B"
             processor = LFM2AudioProcessor.from_pretrained(HF_REPO).eval()
@@ -353,7 +363,7 @@ if __name__ == "__main__":
         "--model-path",
         type=str,
         default=None,
-        help=f"Path to local model directory (default: {DEFAULT_MODEL_PATH} or MODEL_PATH env var)"
+        help=f"Path to local model directory (overrides MODEL_PATH env var; defaults to {DEFAULT_MODEL_PATH})"
     )
     parser.add_argument(
         "--no-share",
