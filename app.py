@@ -16,8 +16,8 @@ processor = None
 DEFAULT_MODEL_PATH = "./models/LFM2.5-Audio-1.5B"
 
 def get_model_path():
-    """Get the model path from command-line argument, environment variable, or default path"""
-    # Check environment variable first
+    """Get the model path from environment variable or default path"""
+    # Check environment variable (may be set by command-line argument)
     env_path = os.environ.get("MODEL_PATH")
     if env_path:
         return env_path
@@ -365,7 +365,7 @@ if __name__ == "__main__":
         os.environ["MODEL_PATH"] = args.model_path
     
     # Determine share setting: default is True unless --no-share is specified
-    share = not args.no_share if args.no_share else (args.share or True)
+    share = not args.no_share
     
     demo = create_ui()
     demo.launch(share=share)
