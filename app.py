@@ -45,20 +45,27 @@ def load_models():
     if model is None or processor is None:
         model_path = get_model_path()
         
-        # Check if the model path is a valid directory
+        # Try to load from local directory first
         if os.path.isdir(model_path):
-            print(f"Loading models from local path: {model_path}")
-            processor = LFM2AudioProcessor.from_pretrained(model_path).eval()
-            model = LFM2AudioModel.from_pretrained(model_path).eval()
+            try:
+                print(f"Loading models from local path: {model_path}")
+                processor = LFM2AudioProcessor.from_pretrained(model_path).eval()
+                model = LFM2AudioModel.from_pretrained(model_path).eval()
+                return model, processor
+            except Exception as e:
+                print(f"Failed to load models from local path: {e}")
+                print("Falling back to downloading from Hugging Face...")
         else:
             if os.path.exists(model_path):
                 print(f"Local model path exists but is not a directory: {model_path}")
             else:
                 print(f"Local model path not found: {model_path}")
             print("Falling back to downloading from Hugging Face...")
-            HF_REPO = "LiquidAI/LFM2.5-Audio-1.5B"
-            processor = LFM2AudioProcessor.from_pretrained(HF_REPO).eval()
-            model = LFM2AudioModel.from_pretrained(HF_REPO).eval()
+        
+        # Fallback to Hugging Face
+        HF_REPO = "LiquidAI/LFM2.5-Audio-1.5B"
+        processor = LFM2AudioProcessor.from_pretrained(HF_REPO).eval()
+        model = LFM2AudioModel.from_pretrained(HF_REPO).eval()
     return model, processor
 
 def speech_to_speech_chat(audio_input, text_input, chat_history, system_prompt):
@@ -363,7 +370,7 @@ if __name__ == "__main__":
         "--model-path",
         type=str,
         default=None,
-        help=f"Path to local model directory. Overrides MODEL_PATH env var. Defaults to {DEFAULT_MODEL_PATH}."
+        help=f"Path to local model directory (sets MODEL_PATH env var). Defaults to {DEFAULT_MODEL_PATH}."
     )
     parser.add_argument(
         "--no-share",
