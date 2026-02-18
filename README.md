@@ -100,6 +100,8 @@ Open your browser and navigate to `http://localhost:7860`
 
 The app now supports loading models from a local directory instead of downloading from Hugging Face each time.
 
+📖 **For detailed setup instructions, see [LOCAL_MODEL_SETUP.md](LOCAL_MODEL_SETUP.md)**
+
 ### Model Path Options (in order of precedence):
 
 1. **Command-line argument**: `--model-path /path/to/model`
