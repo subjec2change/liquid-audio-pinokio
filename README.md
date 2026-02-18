@@ -39,12 +39,24 @@ The LFM2.5-Audio-1.5B model supports interleaved text and audio generation, enab
 pip install -r requirements.txt
 ```
 
-3. **Run the interface**:
+3. **Download or prepare local models** (optional):
+   - By default, models will be loaded from `./models/LFM2.5-Audio-1.5B`
+   - You can download the model from [Hugging Face](https://huggingface.co/LiquidAI/LFM2.5-Audio-1.5B) and place it in this directory
+   - If the local model path doesn't exist, the app will automatically download from Hugging Face
+
+4. **Run the interface**:
 ```bash
+# Use default local model path (./models/LFM2.5-Audio-1.5B)
 python app.py
+
+# Or specify a custom model path
+python app.py --model-path /path/to/your/model
+
+# Or use environment variable
+MODEL_PATH=/path/to/your/model python app.py
 ```
 
-4. **Access the interface**:
+5. **Access the interface**:
 Open your browser and navigate to `http://localhost:7860`
 
 ## Usage
@@ -84,6 +96,41 @@ Open your browser and navigate to `http://localhost:7860`
 - **Repository**: [Hugging Face - LiquidAI/LFM2.5-Audio-1.5B](https://huggingface.co/LiquidAI/LFM2.5-Audio-1.5B)
 - **License**: LFM Open License v1.0
 
+## Local Model Configuration
+
+The app now supports loading models from a local directory instead of downloading from Hugging Face each time.
+
+### Model Path Options (in order of precedence):
+
+1. **Command-line argument**: `--model-path /path/to/model`
+2. **Environment variable**: `MODEL_PATH=/path/to/model`
+3. **Default path**: `./models/LFM2.5-Audio-1.5B`
+
+### Setting Up Local Models:
+
+To use local models, you can:
+
+1. **Download from Hugging Face CLI**:
+   ```bash
+   # Install huggingface-hub if not already installed
+   pip install huggingface-hub
+   
+   # Download the model
+   huggingface-cli download LiquidAI/LFM2.5-Audio-1.5B --local-dir ./models/LFM2.5-Audio-1.5B
+   ```
+
+2. **Use git-lfs**:
+   ```bash
+   git lfs install
+   git clone https://huggingface.co/LiquidAI/LFM2.5-Audio-1.5B ./models/LFM2.5-Audio-1.5B
+   ```
+
+3. **Manual download**: Download model files from the Hugging Face repository and place them in your chosen directory
+
+### Fallback Behavior:
+
+If the specified local model path doesn't exist, the app will automatically fall back to downloading the model from Hugging Face. This ensures the app always works, even if local models aren't set up yet.
+
 ## Technical Details
 
 ### Audio Processing
@@ -96,7 +143,7 @@ Open your browser and navigate to `http://localhost:7860`
   - Audio top-k: 4 (speech-to-speech), 64 (TTS)
 
 ### Architecture
-The interface uses Gradio with PyTorch and torchaudio to load and run the LFM2.5-Audio-1.5B model. The model automatically downloads from Hugging Face on first use.
+The interface uses Gradio with PyTorch and torchaudio to load and run the LFM2.5-Audio-1.5B model. The model can be loaded from a local directory or automatically downloaded from Hugging Face if not found locally.
 
 ## Requirements
 
@@ -117,7 +164,9 @@ The interface uses Gradio with PyTorch and torchaudio to load and run the LFM2.5
 
 ## Notes
 
-- First model load may take longer as the weights are downloaded from Hugging Face
+- By default, models are loaded from `./models/LFM2.5-Audio-1.5B` directory
+- If local models are not found, they will be automatically downloaded from Hugging Face
+- First model load may take longer if downloading from Hugging Face
 - GPU is strongly recommended for real-time performance
 - The model supports multi-turn conversations with full history preservation
 - Audio files are temporarily stored during processing and cleaned up afterward

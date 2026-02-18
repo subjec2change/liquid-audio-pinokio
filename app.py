@@ -6,18 +6,42 @@ from typing import Optional
 import tempfile
 import os
 import numpy as np
+import argparse
 
 # Global model and processor
 model = None
 processor = None
 
+# Model path configuration
+DEFAULT_MODEL_PATH = "./models/LFM2.5-Audio-1.5B"
+
+def get_model_path():
+    """Get the model path from environment variable or command-line argument"""
+    # Check environment variable first
+    env_path = os.environ.get("MODEL_PATH")
+    if env_path:
+        return env_path
+    
+    # Use default path
+    return DEFAULT_MODEL_PATH
+
 def load_models():
-    """Load the Liquid Audio model and processor"""
+    """Load the Liquid Audio model and processor from local folder"""
     global model, processor
     if model is None or processor is None:
-        HF_REPO = "LiquidAI/LFM2.5-Audio-1.5B"
-        processor = LFM2AudioProcessor.from_pretrained(HF_REPO).eval()
-        model = LFM2AudioModel.from_pretrained(HF_REPO).eval()
+        model_path = get_model_path()
+        
+        # Check if the model path exists
+        if os.path.exists(model_path):
+            print(f"Loading models from local path: {model_path}")
+            processor = LFM2AudioProcessor.from_pretrained(model_path).eval()
+            model = LFM2AudioModel.from_pretrained(model_path).eval()
+        else:
+            print(f"Local model path not found: {model_path}")
+            print("Falling back to downloading from Hugging Face...")
+            HF_REPO = "LiquidAI/LFM2.5-Audio-1.5B"
+            processor = LFM2AudioProcessor.from_pretrained(HF_REPO).eval()
+            model = LFM2AudioModel.from_pretrained(HF_REPO).eval()
     return model, processor
 
 def speech_to_speech_chat(audio_input, text_input, chat_history, system_prompt):
@@ -317,5 +341,24 @@ def create_ui():
     return demo
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Liquid Audio - LFM2.5-Audio-1.5B Interface")
+    parser.add_argument(
+        "--model-path",
+        type=str,
+        default=None,
+        help=f"Path to local model directory (default: {DEFAULT_MODEL_PATH} or MODEL_PATH env var)"
+    )
+    parser.add_argument(
+        "--share",
+        action="store_true",
+        default=True,
+        help="Create a public shareable link (default: True)"
+    )
+    args = parser.parse_args()
+    
+    # Set model path from command-line argument if provided
+    if args.model_path:
+        os.environ["MODEL_PATH"] = args.model_path
+    
     demo = create_ui()
-    demo.launch(share=True)
+    demo.launch(share=args.share)
