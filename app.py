@@ -48,11 +48,9 @@ def load_models():
         # Try to load from local directory first
         if os.path.isdir(model_path):
             try:
-                # Convert to absolute path to avoid Hugging Face validation errors
-                abs_model_path = os.path.abspath(model_path)
-                print(f"Loading models from local path: {abs_model_path}")
-                processor = LFM2AudioProcessor.from_pretrained(abs_model_path, local_files_only=True)
-                model = LFM2AudioModel.from_pretrained(abs_model_path, local_files_only=True).eval()
+                print(f"Loading models from local path: {model_path}")
+                processor = LFM2AudioProcessor.from_pretrained(model_path)
+                model = LFM2AudioModel.from_pretrained(model_path).eval()
                 return model, processor
             except Exception as e:
                 print(f"Failed to load models from local path: {e}")
