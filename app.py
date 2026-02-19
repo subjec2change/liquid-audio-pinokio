@@ -49,8 +49,8 @@ def load_models():
         if os.path.isdir(model_path):
             try:
                 print(f"Loading models from local path: {model_path}")
-                processor = LFM2AudioProcessor.from_pretrained(model_path)
-                model = LFM2AudioModel.from_pretrained(model_path).eval()
+                processor = LFM2AudioProcessor.from_pretrained(model_path, local_files_only=True)
+                model = LFM2AudioModel.from_pretrained(model_path, local_files_only=True).eval()
                 return model, processor
             except Exception as e:
                 print(f"Failed to load models from local path: {e}")
