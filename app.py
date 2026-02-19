@@ -6,17 +6,65 @@ from typing import Optional
 import tempfile
 import os
 import numpy as np
+import argparse
 
 # Global model and processor
 model = None
 processor = None
 
+# Model path configuration
+DEFAULT_MODEL_PATH = "./models/LFM2.5-Audio-1.5B"
+
+def get_model_path():
+    """
+    Get the model path for loading the ML model.
+    
+    Checks the MODEL_PATH environment variable first, falling back to DEFAULT_MODEL_PATH if not set.
+    
+    Returns:
+        str: The resolved model path.
+    """
+    # Check environment variable (may be set by command-line argument)
+    env_path = os.environ.get("MODEL_PATH")
+    if env_path:
+        return env_path
+    
+    # Use default path
+    return DEFAULT_MODEL_PATH
+
 def load_models():
-    """Load the Liquid Audio model and processor"""
+    """
+    Load the Liquid Audio model and processor.
+    
+    Attempts to load from local folder first, falling back to Hugging Face if not found locally.
+    
+    Returns:
+        tuple: A tuple of (model, processor)
+    """
     global model, processor
     if model is None or processor is None:
+        model_path = get_model_path()
+        
+        # Try to load from local directory first
+        if os.path.isdir(model_path):
+            try:
+                print(f"Loading models from local path: {model_path}")
+                processor = LFM2AudioProcessor.from_pretrained(model_path)
+                model = LFM2AudioModel.from_pretrained(model_path).eval()
+                return model, processor
+            except Exception as e:
+                print(f"Failed to load models from local path: {e}")
+                print("Falling back to downloading from Hugging Face...")
+        else:
+            if os.path.exists(model_path):
+                print(f"Local model path exists but is not a directory: {model_path}")
+            else:
+                print(f"Local model path not found: {model_path}")
+            print("Falling back to downloading from Hugging Face...")
+        
+        # Fallback to Hugging Face
         HF_REPO = "LiquidAI/LFM2.5-Audio-1.5B"
-        processor = LFM2AudioProcessor.from_pretrained(HF_REPO).eval()
+        processor = LFM2AudioProcessor.from_pretrained(HF_REPO)
         model = LFM2AudioModel.from_pretrained(HF_REPO).eval()
     return model, processor
 
@@ -317,5 +365,26 @@ def create_ui():
     return demo
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Liquid Audio - LFM2.5-Audio-1.5B Interface")
+    parser.add_argument(
+        "--model-path",
+        type=str,
+        default=None,
+        help=f"Path to local model directory (sets MODEL_PATH env var). Defaults to {DEFAULT_MODEL_PATH}."
+    )
+    parser.add_argument(
+        "--no-share",
+        action="store_true",
+        help="Run locally without creating a public shareable link (default: share is enabled)."
+    )
+    args = parser.parse_args()
+    
+    # Set model path from command-line argument if provided
+    if args.model_path:
+        os.environ["MODEL_PATH"] = args.model_path
+    
+    # Determine share setting: default is True unless --no-share is specified
+    share = not args.no_share
+    
     demo = create_ui()
-    demo.launch(share=True)
+    demo.launch(share=share)
