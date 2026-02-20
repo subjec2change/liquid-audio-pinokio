@@ -1,4 +1,4 @@
-# Liquid Audio - Pinokio
+# Liquid Audio 
 
 🎙️ **Liquid Audio - LFM2.5-Audio-1.5B** - A Gradio web interface for Liquid AI's multimodal audio model, packaged for Pinokio.
 
