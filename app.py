@@ -3,6 +3,7 @@ from openai import OpenAI, APIConnectionError
 import os
 import json
 import argparse
+import threading
 import torch
 from faster_whisper import WhisperModel
 
@@ -48,19 +49,33 @@ MODEL_NAMES: list[str] = list(LLAMA_MODELS.keys())
 DEFAULT_MODEL: str = MODEL_NAMES[0]
 
 # ---------------------------------------------------------------------------
-# faster-whisper configuration
+# faster-whisper configuration (model is loaded lazily on first use)
 # ---------------------------------------------------------------------------
 WHISPER_MODEL_SIZE = os.environ.get("WHISPER_MODEL_SIZE", "base")
 _whisper_device = "cuda" if torch.cuda.is_available() else "cpu"
 _whisper_compute_type = "float16" if _whisper_device == "cuda" else "int8"
-try:
-    whisper_model = WhisperModel(WHISPER_MODEL_SIZE, device=_whisper_device, compute_type=_whisper_compute_type)
-except Exception as _whisper_load_error:
-    raise SystemExit(
-        f"Error: Failed to load faster-whisper model '{WHISPER_MODEL_SIZE}'.\n"
-        f"  Set WHISPER_MODEL_SIZE to a valid size: tiny, base, small, medium, large-v3\n"
-        f"  Detail: {_whisper_load_error}"
-    ) from _whisper_load_error
+_whisper_model: WhisperModel | None = None
+_whisper_model_lock = threading.Lock()
+
+
+def _get_whisper_model() -> WhisperModel:
+    """Return the faster-whisper model, loading it on first call (thread-safe)."""
+    global _whisper_model
+    if _whisper_model is None:
+        with _whisper_model_lock:
+            if _whisper_model is None:
+                try:
+                    _whisper_model = WhisperModel(
+                        WHISPER_MODEL_SIZE, device=_whisper_device, compute_type=_whisper_compute_type
+                    )
+                except Exception as exc:
+                    raise RuntimeError(
+                        f"Failed to load faster-whisper model '{WHISPER_MODEL_SIZE}'. "
+                        f"Check your network connection or set WHISPER_MODEL_SIZE to a valid size "
+                        f"(tiny, base, small, medium, large-v3). Detail: {exc}"
+                    ) from exc
+    return _whisper_model
+
 
 _SERVER_UNAVAILABLE_MSG = (
     "⚠️ Cannot connect to llama-server at {url}.\n"
@@ -145,7 +160,7 @@ def asr_transcription(audio_input, model_name):
             yield "Please provide an audio input."
             return
 
-        segments, info = whisper_model.transcribe(audio_input, beam_size=5)
+        segments, info = _get_whisper_model().transcribe(audio_input, beam_size=5)
         transcript = " ".join(segment.text for segment in segments)
 
         if not transcript.strip():
