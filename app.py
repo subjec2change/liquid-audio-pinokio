@@ -3,6 +3,9 @@ from openai import OpenAI, APIConnectionError
 import os
 import json
 import argparse
+import threading
+import torch
+from faster_whisper import WhisperModel
 
 # ---------------------------------------------------------------------------
 # llama-server connection configuration (override with environment variables)
@@ -44,6 +47,56 @@ else:
 
 MODEL_NAMES: list[str] = list(LLAMA_MODELS.keys())
 DEFAULT_MODEL: str = MODEL_NAMES[0]
+
+# ---------------------------------------------------------------------------
+# faster-whisper configuration (model is loaded lazily on first use)
+# ---------------------------------------------------------------------------
+WHISPER_MODEL_SIZE = os.environ.get("WHISPER_MODEL_SIZE", "base")
+# WHISPER_MODEL_PATH: path to a local CTranslate2 model directory, resolved
+# relative to the directory where app.py lives.  When the directory exists it
+# takes priority over downloading from Hugging Face.  Set to an absolute path
+# or a path relative to the app directory.  Default: "whisper-model" (i.e.
+# <app-dir>/whisper-model/).
+_APP_DIR = os.path.dirname(os.path.abspath(__file__))
+_whisper_model_path_env = os.environ.get("WHISPER_MODEL_PATH", "whisper-model")
+WHISPER_MODEL_PATH: str = (
+    _whisper_model_path_env
+    if os.path.isabs(_whisper_model_path_env)
+    else os.path.join(_APP_DIR, _whisper_model_path_env)
+)
+_whisper_device = "cuda" if torch.cuda.is_available() else "cpu"
+_whisper_compute_type = "float16" if _whisper_device == "cuda" else "int8"
+_whisper_model: WhisperModel | None = None
+_whisper_model_lock = threading.Lock()
+
+
+def _get_whisper_model() -> WhisperModel:
+    """Return the faster-whisper model, loading it on first call (thread-safe).
+
+    Loads from WHISPER_MODEL_PATH if the directory exists, otherwise falls
+    back to downloading the WHISPER_MODEL_SIZE model from Hugging Face.
+    """
+    global _whisper_model
+    if _whisper_model is None:
+        with _whisper_model_lock:
+            if _whisper_model is None:
+                if os.path.isdir(WHISPER_MODEL_PATH):
+                    model_source = WHISPER_MODEL_PATH
+                else:
+                    model_source = WHISPER_MODEL_SIZE
+                try:
+                    _whisper_model = WhisperModel(
+                        model_source, device=_whisper_device, compute_type=_whisper_compute_type
+                    )
+                except Exception as exc:
+                    raise RuntimeError(
+                        f"Failed to load faster-whisper model from '{model_source}'. "
+                        f"Place a CTranslate2 Whisper model in '{WHISPER_MODEL_PATH}' "
+                        f"or set WHISPER_MODEL_SIZE to a valid size "
+                        f"(tiny, base, small, medium, large-v3). Detail: {exc}"
+                    ) from exc
+    return _whisper_model
+
 
 _SERVER_UNAVAILABLE_MSG = (
     "⚠️ Cannot connect to llama-server at {url}.\n"
@@ -122,46 +175,22 @@ def speech_to_speech_chat(audio_input, text_input, chat_history, system_prompt, 
 
 
 def asr_transcription(audio_input, model_name):
-    """Transcribe audio via the selected llama-server."""
+    """Transcribe audio using faster-whisper locally."""
     try:
         if audio_input is None:
             yield "Please provide an audio input."
             return
 
-        client, model = get_client(model_name)
+        segments, info = _get_whisper_model().transcribe(audio_input, beam_size=5)
+        transcript = " ".join(segment.text for segment in segments)
 
-        messages = [
-            {
-                "role": "system",
-                "content": (
-                    "You are a helpful assistant. "
-                    "When the user mentions an audio file, acknowledge it and note "
-                    "that actual audio transcription requires a whisper.cpp endpoint "
-                    "or a multimodal GGUF model."
-                ),
-            },
-            {
-                "role": "user",
-                "content": (
-                    "An audio file was uploaded. "
-                    "For full audio transcription, connect a whisper.cpp endpoint "
-                    "or a multimodal GGUF model to llama-server."
-                ),
-            },
-        ]
+        if not transcript.strip():
+            yield "No speech detected in the audio."
+        else:
+            yield transcript.strip()
 
-        response = client.chat.completions.create(
-            model=model,
-            messages=messages,
-            temperature=LLAMA_TEMPERATURE,
-            max_tokens=LLAMA_MAX_TOKENS,
-        )
-        yield response.choices[0].message.content
-
-    except APIConnectionError:
-        yield _server_error_msg(model_name)
     except Exception as e:
-        yield f"Error: {str(e)}"
+        yield f"Transcription error: {str(e)}"
 
 
 def tts_synthesis(text_input, voice_selection, model_name):
@@ -306,10 +335,12 @@ def create_ui():
                 gr.Markdown("---")
                 gr.Markdown(
                     "**How to use:**\n"
-                    "1. Select a model from the dropdown\n"
-                    "2. Upload an audio file or record speech\n"
-                    "3. Click Transcribe — for full audio transcription use a "
-                    "multimodal or whisper GGUF model with llama-server"
+                    "1. Upload an audio file or record speech\n"
+                    "2. Click Transcribe\n"
+                    "3. View the transcription — powered locally by faster-whisper "
+                    f"(model: `{WHISPER_MODEL_SIZE}`, device: `{_whisper_device}`)\n"
+                    "4. Set the `WHISPER_MODEL_SIZE` environment variable to change "
+                    "the model size (`tiny`, `base`, `small`, `medium`, `large-v3`)"
                 )
 
             # TTS Tab
