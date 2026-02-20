@@ -113,15 +113,23 @@ Open your browser at `http://localhost:7860`.
 
 ## Environment Variables
 
+### Single-model configuration (backward compatible)
+
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `LLAMA_BASE_URL` | `http://127.0.0.1:8080` | Base URL of the running llama-server |
-| `LLAMA_MODEL` | `local-model` | Model identifier sent in API requests (informational) |
+| `LLAMA_MODEL` | `local-model` | Model identifier sent in API requests |
 | `LLAMA_API_KEY` | `not-needed` | API key (dummy value; required by the OpenAI client) |
 | `LLAMA_TEMPERATURE` | `0.7` | Sampling temperature |
 | `LLAMA_MAX_TOKENS` | `512` | Maximum tokens to generate per request |
 
-Example:
+### Multi-model configuration
+
+| Variable | Format | Description |
+|----------|--------|-------------|
+| `LLAMA_MODELS` | JSON `{"alias": "http://host:port", ...}` | Map of model names → server base URLs. **Takes precedence over `LLAMA_BASE_URL`/`LLAMA_MODEL` when set.** |
+
+Example (single model, backward-compatible):
 
 ```bash
 LLAMA_BASE_URL=http://127.0.0.1:8080 \
@@ -129,6 +137,56 @@ LLAMA_MODEL=mistral-7b \
 LLAMA_TEMPERATURE=0.5 \
 python app.py --no-share
 ```
+
+Example (multiple models):
+
+```bash
+export LLAMA_MODELS='{"mistral-7b": "http://127.0.0.1:8080",
+                      "llama-3-8b": "http://127.0.0.1:8081"}'
+python app.py --no-share
+```
+
+---
+
+## Running Multiple Models Simultaneously
+
+Each model runs in its own `llama-server` process on a different port.
+The Python app routes each request to the selected model's server.
+
+### Step 1 — Start all servers with the multi-model script
+
+```bash
+bash scripts/run-llama-server-multi.sh \
+    --model "mistral-7b:~/models/Mistral-7B-Instruct-v0.3-Q4_K_M.gguf" \
+    --model "llama-3-8b:~/models/Meta-Llama-3-8B-Instruct-Q4_K_M.gguf"
+```
+
+The script assigns consecutive ports starting at `8080` and prints the
+`LLAMA_MODELS` export string to copy-paste:
+
+```
+export LLAMA_MODELS='{"mistral-7b":"http://127.0.0.1:8080","llama-3-8b":"http://127.0.0.1:8081"}'
+python app.py --no-share
+```
+
+### Step 2 — Export `LLAMA_MODELS` and start the app
+
+```bash
+export LLAMA_MODELS='{"mistral-7b":"http://127.0.0.1:8080","llama-3-8b":"http://127.0.0.1:8081"}'
+python app.py --no-share
+```
+
+The app's model selector dropdown (present on every tab) lets you switch
+between models without restarting anything.
+
+### GPU memory considerations
+
+Running multiple large models at the same time requires enough VRAM for all
+of them simultaneously.  Strategies to reduce VRAM usage:
+
+- Use smaller quantised models (Q4_K_M, Q3_K_M)
+- Reduce `--n-gpu-layers` so some layers run on CPU
+- Use `--ctx-size 2048` (or lower) to shrink the KV-cache per instance
 
 ---
 
@@ -162,18 +220,31 @@ python app.py --no-share
 
 ## Architecture
 
+### Single model
+
 ```
 Browser → Gradio (port 7860) → app.py
-                                  │
+                                  │  (model selector = "mistral-7b")
                         OpenAI-compatible API
                                   │
-                         llama-server (port 8080)
+                         llama-server :8080
                                   │
-                         GGUF model (CUDA / NVIDIA GPU)
+                         mistral-7b.gguf  (CUDA)
 ```
 
-`app.py` uses the `openai` Python package with a custom `base_url` to talk to
-the OpenAI-compatible `/v1/chat/completions` endpoint exposed by llama-server.
+### Multiple models
+
+```
+Browser → Gradio (port 7860) → app.py
+                                  ├── model selector = "mistral-7b"
+                                  │       └── llama-server :8080 → mistral-7b.gguf
+                                  └── model selector = "llama-3-8b"
+                                          └── llama-server :8081 → llama-3-8b.gguf
+```
+
+`app.py` uses the `openai` Python package with a custom `base_url` (looked up
+from `LLAMA_MODELS`) to talk to the OpenAI-compatible `/v1/chat/completions`
+endpoint exposed by the selected llama-server instance.
 
 ---
 
@@ -188,14 +259,26 @@ the OpenAI-compatible `/v1/chat/completions` endpoint exposed by llama-server.
 | `--ctx-size` | `4096` | Context size in tokens |
 | `--threads` | `4` | CPU threads for non-GPU operations |
 
+## scripts/run-llama-server-multi.sh flags
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--model` | *(one or more required)* | `alias:/path/to/model.gguf` — repeat for each model |
+| `--base-port` | `8080` | First port; each subsequent model uses `base-port + n` |
+| `--host` | `127.0.0.1` | Host to bind all servers to |
+| `--n-gpu-layers` | `99` | GPU layers (applied to all instances) |
+| `--ctx-size` | `4096` | Context size (applied to all instances) |
+| `--threads` | `4` | CPU threads (applied to all instances) |
+
 ---
 
 ## Troubleshooting
 
 ### "Cannot connect to llama-server"
 
-Make sure `llama-server` is running and listening on the configured
-`LLAMA_BASE_URL` before starting the Python app.
+Make sure `llama-server` is running and listening on the URL configured for
+the selected model.  Use `LLAMA_MODELS` (or `LLAMA_BASE_URL`) to point the
+app at the correct address.
 
 ### CUDA out-of-memory
 

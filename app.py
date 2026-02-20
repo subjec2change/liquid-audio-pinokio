@@ -1,41 +1,78 @@
 import gradio as gr
 from openai import OpenAI, APIConnectionError
 import os
+import json
 import argparse
 
 # ---------------------------------------------------------------------------
 # llama-server connection configuration (override with environment variables)
 # ---------------------------------------------------------------------------
-LLAMA_BASE_URL = os.environ.get("LLAMA_BASE_URL", "http://127.0.0.1:8080")
-LLAMA_MODEL = os.environ.get("LLAMA_MODEL", "local-model")
+#
+# Multi-model mode (recommended):
+#   Set LLAMA_MODELS to a JSON object mapping model names to their base URLs:
+#     LLAMA_MODELS='{"mistral-7b": "http://127.0.0.1:8080",
+#                    "llama-3-8b": "http://127.0.0.1:8081"}'
+#
+# Single-model mode (backward compatible):
+#   If LLAMA_MODELS is not set, the app falls back to LLAMA_BASE_URL /
+#   LLAMA_MODEL, identical to the previous behaviour.
+# ---------------------------------------------------------------------------
+
 LLAMA_API_KEY = os.environ.get("LLAMA_API_KEY", "not-needed")
 LLAMA_TEMPERATURE = float(os.environ.get("LLAMA_TEMPERATURE", "0.7"))
 LLAMA_MAX_TOKENS = int(os.environ.get("LLAMA_MAX_TOKENS", "512"))
 
+# Build the models dict: {name -> base_url}
+_models_json = os.environ.get("LLAMA_MODELS", "")
+if _models_json:
+    try:
+        LLAMA_MODELS: dict[str, str] = json.loads(_models_json)
+        if not isinstance(LLAMA_MODELS, dict) or not LLAMA_MODELS:
+            raise ValueError("LLAMA_MODELS must be a non-empty JSON object")
+    except (json.JSONDecodeError, ValueError) as exc:
+        raise SystemExit(
+            f"Error: LLAMA_MODELS is not valid JSON.\n"
+            f"  Expected format: '{{\"model-name\": \"http://host:port\", ...}}'\n"
+            f"  Got: {_models_json!r}\n"
+            f"  Detail: {exc}"
+        ) from exc
+else:
+    # Backward-compatible single-model fallback
+    _base_url = os.environ.get("LLAMA_BASE_URL", "http://127.0.0.1:8080")
+    _model_name = os.environ.get("LLAMA_MODEL", "local-model")
+    LLAMA_MODELS = {_model_name: _base_url}
+
+MODEL_NAMES: list[str] = list(LLAMA_MODELS.keys())
+DEFAULT_MODEL: str = MODEL_NAMES[0]
+
 _SERVER_UNAVAILABLE_MSG = (
     "⚠️ Cannot connect to llama-server at {url}.\n"
     "Please start llama-server first:\n"
-    "  bash scripts/run-llama-server.sh\n"
+    "  bash scripts/run-llama-server.sh  (single model)\n"
+    "  bash scripts/run-llama-server-multi.sh  (multiple models)\n"
     "See README.md for full setup instructions."
 )
 
 
-def get_client() -> OpenAI:
-    """Return an OpenAI-compatible client pointed at the local llama-server."""
-    return OpenAI(
-        base_url=f"{LLAMA_BASE_URL}/v1",
+def get_client(model_name: str) -> tuple[OpenAI, str]:
+    """Return an (OpenAI client, model name) pair for the given model alias."""
+    base_url = LLAMA_MODELS[model_name]
+    client = OpenAI(
+        base_url=f"{base_url}/v1",
         api_key=LLAMA_API_KEY,
     )
+    return client, model_name
 
 
-def _server_error_msg() -> str:
-    return _SERVER_UNAVAILABLE_MSG.format(url=LLAMA_BASE_URL)
+def _server_error_msg(model_name: str) -> str:
+    url = LLAMA_MODELS.get(model_name, f"<unknown model '{model_name}'>")
+    return _SERVER_UNAVAILABLE_MSG.format(url=url)
 
 
-def speech_to_speech_chat(audio_input, text_input, chat_history, system_prompt):
-    """Handle multi-turn conversation via llama-server."""
+def speech_to_speech_chat(audio_input, text_input, chat_history, system_prompt, model_name):
+    """Handle multi-turn conversation via the selected llama-server."""
     try:
-        client = get_client()
+        client, model = get_client(model_name)
 
         messages = [
             {"role": "system", "content": system_prompt or "You are a helpful assistant."}
@@ -60,7 +97,7 @@ def speech_to_speech_chat(audio_input, text_input, chat_history, system_prompt):
 
         full_response = ""
         with client.chat.completions.create(
-            model=LLAMA_MODEL,
+            model=model,
             messages=messages,
             temperature=LLAMA_TEMPERATURE,
             max_tokens=LLAMA_MAX_TOKENS,
@@ -79,19 +116,19 @@ def speech_to_speech_chat(audio_input, text_input, chat_history, system_prompt):
         yield full_response, new_history
 
     except APIConnectionError:
-        yield _server_error_msg(), chat_history
+        yield _server_error_msg(model_name), chat_history
     except Exception as e:
         yield f"Error: {str(e)}", chat_history
 
 
-def asr_transcription(audio_input):
-    """Transcribe audio via llama-server."""
+def asr_transcription(audio_input, model_name):
+    """Transcribe audio via the selected llama-server."""
     try:
         if audio_input is None:
             yield "Please provide an audio input."
             return
 
-        client = get_client()
+        client, model = get_client(model_name)
 
         messages = [
             {
@@ -114,7 +151,7 @@ def asr_transcription(audio_input):
         ]
 
         response = client.chat.completions.create(
-            model=LLAMA_MODEL,
+            model=model,
             messages=messages,
             temperature=LLAMA_TEMPERATURE,
             max_tokens=LLAMA_MAX_TOKENS,
@@ -122,19 +159,19 @@ def asr_transcription(audio_input):
         yield response.choices[0].message.content
 
     except APIConnectionError:
-        yield _server_error_msg()
+        yield _server_error_msg(model_name)
     except Exception as e:
         yield f"Error: {str(e)}"
 
 
-def tts_synthesis(text_input, voice_selection):
-    """Generate text via llama-server (audio output requires a separate TTS backend)."""
+def tts_synthesis(text_input, voice_selection, model_name):
+    """Generate text via the selected llama-server (audio output requires a separate TTS backend)."""
     try:
         if not text_input:
             yield "Please provide text input."
             return
 
-        client = get_client()
+        client, model = get_client(model_name)
 
         voice_styles = {
             "US Male": "Respond in a clear, professional US English style.",
@@ -151,7 +188,7 @@ def tts_synthesis(text_input, voice_selection):
         ]
 
         response = client.chat.completions.create(
-            model=LLAMA_MODEL,
+            model=model,
             messages=messages,
             temperature=LLAMA_TEMPERATURE,
             max_tokens=LLAMA_MAX_TOKENS,
@@ -159,12 +196,28 @@ def tts_synthesis(text_input, voice_selection):
         yield response.choices[0].message.content
 
     except APIConnectionError:
-        yield _server_error_msg()
+        yield _server_error_msg(model_name)
     except Exception as e:
         yield f"Error: {str(e)}"
 
+def _model_selector(tab_id: str) -> gr.Dropdown:
+    """Return a pre-configured model-selector dropdown for the given tab."""
+    return gr.Dropdown(
+        choices=MODEL_NAMES,
+        value=DEFAULT_MODEL,
+        label="Model",
+        info="Select which llama-server instance to query.",
+        interactive=True,
+        elem_id=f"model_selector_{tab_id}",
+    )
+
+
 def create_ui():
     """Create the Gradio interface"""
+
+    models_summary = ", ".join(
+        f"`{name}` → {url}" for name, url in LLAMA_MODELS.items()
+    )
 
     with gr.Blocks(title="Liquid Audio UI") as demo:
         gr.Markdown("# 🎙️ Liquid Audio — llama-server backend")
@@ -179,6 +232,7 @@ def create_ui():
                 with gr.Row():
                     with gr.Column():
                         gr.Markdown("### Input")
+                        chat_model = _model_selector("chat")
                         audio_input = gr.Audio(
                             label="Upload Audio (or record)",
                             type="filepath",
@@ -208,17 +262,18 @@ def create_ui():
 
                 chat_submit.click(
                     fn=speech_to_speech_chat,
-                    inputs=[audio_input, text_input, chat_history, system_prompt],
+                    inputs=[audio_input, text_input, chat_history, system_prompt, chat_model],
                     outputs=[text_output, chat_history],
                 )
 
                 gr.Markdown("---")
                 gr.Markdown(
                     "**How to use:**\n"
-                    "1. Upload audio or record a message\n"
-                    "2. Optionally add text input\n"
-                    "3. Click Send to get a response from llama-server\n"
-                    "4. Continue the conversation — your history is preserved"
+                    "1. Select a model from the dropdown\n"
+                    "2. Upload audio or record a message\n"
+                    "3. Optionally add text input\n"
+                    "4. Click Send to get a response from llama-server\n"
+                    "5. Continue the conversation — your history is preserved"
                 )
 
             # ASR Tab
@@ -226,6 +281,7 @@ def create_ui():
                 with gr.Row():
                     with gr.Column():
                         gr.Markdown("### Audio Input")
+                        asr_model = _model_selector("asr")
                         asr_audio_input = gr.Audio(
                             label="Upload Audio or Record",
                             type="filepath",
@@ -243,15 +299,16 @@ def create_ui():
 
                 asr_submit.click(
                     fn=asr_transcription,
-                    inputs=asr_audio_input,
+                    inputs=[asr_audio_input, asr_model],
                     outputs=asr_output,
                 )
 
                 gr.Markdown("---")
                 gr.Markdown(
                     "**How to use:**\n"
-                    "1. Upload an audio file or record speech\n"
-                    "2. Click Transcribe — for full audio transcription use a "
+                    "1. Select a model from the dropdown\n"
+                    "2. Upload an audio file or record speech\n"
+                    "3. Click Transcribe — for full audio transcription use a "
                     "multimodal or whisper GGUF model with llama-server"
                 )
 
@@ -260,6 +317,7 @@ def create_ui():
                 with gr.Row():
                     with gr.Column():
                         gr.Markdown("### Text Input")
+                        tts_model = _model_selector("tts")
                         tts_text_input = gr.Textbox(
                             label="Enter Text to Convert",
                             placeholder="Type the text you want to synthesize...",
@@ -282,24 +340,24 @@ def create_ui():
 
                 tts_submit.click(
                     fn=tts_synthesis,
-                    inputs=[tts_text_input, voice_selection],
+                    inputs=[tts_text_input, voice_selection, tts_model],
                     outputs=tts_output,
                 )
 
                 gr.Markdown("---")
                 gr.Markdown(
                     "**How to use:**\n"
-                    "1. Enter text in the input field\n"
-                    "2. Select a voice style\n"
-                    "3. Click Generate — llama-server returns a text response; "
+                    "1. Select a model from the dropdown\n"
+                    "2. Enter text in the input field\n"
+                    "3. Select a voice style\n"
+                    "4. Click Generate — llama-server returns a text response; "
                     "pipe the output to a TTS engine for audio if required"
                 )
 
         gr.Markdown("---")
         gr.Markdown(
-            f"**Backend:** llama-server at `{LLAMA_BASE_URL}` | "
-            "**Model:** set via `LLAMA_MODEL` env var\n"
-            "See [README.md](README.md) for full Linux/CUDA setup instructions."
+            f"**Configured models:** {models_summary}\n\n"
+            "See [README.md](README.md) for Linux/CUDA setup and multi-model instructions."
         )
 
     return demo
@@ -316,8 +374,9 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
 
-    print(f"Connecting to llama-server at: {LLAMA_BASE_URL}")
-    print(f"Model identifier          : {LLAMA_MODEL}")
+    print("Configured models:")
+    for name, url in LLAMA_MODELS.items():
+        print(f"  {name:30s} → {url}")
 
     demo = create_ui()
     demo.launch(share=not args.no_share)
