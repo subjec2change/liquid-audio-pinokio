@@ -3,6 +3,7 @@ from openai import OpenAI, APIConnectionError
 import os
 import json
 import argparse
+import whisper
 
 # ---------------------------------------------------------------------------
 # llama-server connection configuration (override with environment variables)
@@ -44,6 +45,9 @@ else:
 
 MODEL_NAMES: list[str] = list(LLAMA_MODELS.keys())
 DEFAULT_MODEL: str = MODEL_NAMES[0]
+
+WHISPER_MODEL_SIZE = os.environ.get("WHISPER_MODEL_SIZE", "base")
+whisper_model = whisper.load_model(WHISPER_MODEL_SIZE)
 
 _SERVER_UNAVAILABLE_MSG = (
     "⚠️ Cannot connect to llama-server at {url}.\n"
@@ -122,46 +126,22 @@ def speech_to_speech_chat(audio_input, text_input, chat_history, system_prompt, 
 
 
 def asr_transcription(audio_input, model_name):
-    """Transcribe audio via the selected llama-server."""
+    """Transcribe audio using OpenAI Whisper locally."""
     try:
         if audio_input is None:
             yield "Please provide an audio input."
             return
 
-        client, model = get_client(model_name)
+        result = whisper_model.transcribe(audio_input)
+        transcript = result.get("text", "").strip()
 
-        messages = [
-            {
-                "role": "system",
-                "content": (
-                    "You are a helpful assistant. "
-                    "When the user mentions an audio file, acknowledge it and note "
-                    "that actual audio transcription requires a whisper.cpp endpoint "
-                    "or a multimodal GGUF model."
-                ),
-            },
-            {
-                "role": "user",
-                "content": (
-                    "An audio file was uploaded. "
-                    "For full audio transcription, connect a whisper.cpp endpoint "
-                    "or a multimodal GGUF model to llama-server."
-                ),
-            },
-        ]
+        if not transcript:
+            yield "No speech detected in the audio."
+        else:
+            yield transcript
 
-        response = client.chat.completions.create(
-            model=model,
-            messages=messages,
-            temperature=LLAMA_TEMPERATURE,
-            max_tokens=LLAMA_MAX_TOKENS,
-        )
-        yield response.choices[0].message.content
-
-    except APIConnectionError:
-        yield _server_error_msg(model_name)
     except Exception as e:
-        yield f"Error: {str(e)}"
+        yield f"Transcription error: {str(e)}"
 
 
 def tts_synthesis(text_input, voice_selection, model_name):
