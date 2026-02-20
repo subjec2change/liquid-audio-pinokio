@@ -24,6 +24,7 @@ The app exposes three tabs via a Gradio web UI:
 - NVIDIA GPU with CUDA 12.x drivers installed
 - `cmake` ≥ 3.21, `gcc`/`g++` ≥ 11, `git`
 - Python 3.10+
+- `ffmpeg` installed on the system (required by OpenAI Whisper for audio decoding)
 
 ---
 
@@ -123,6 +124,12 @@ Open your browser at `http://localhost:7860`.
 | `LLAMA_TEMPERATURE` | `0.7` | Sampling temperature |
 | `LLAMA_MAX_TOKENS` | `512` | Maximum tokens to generate per request |
 
+### ASR configuration
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `WHISPER_MODEL_SIZE` | `base` | OpenAI Whisper model size for ASR (`tiny`, `base`, `small`, `medium`, `large`) |
+
 ### Multi-model configuration
 
 | Variable | Format | Description |
@@ -204,10 +211,7 @@ of them simultaneously.  Strategies to reduce VRAM usage:
 
 1. Upload an audio file or record speech
 2. Click **Transcribe**
-3. View the response from llama-server
-
-> For true audio transcription, use a multimodal GGUF (e.g., whisper.cpp
-> served via llama-server) and pass the audio file path as context.
+3. The audio is transcribed locally using OpenAI Whisper (no llama-server required for this tab)
 
 ### Text-to-Speech (TTS)
 
@@ -296,6 +300,8 @@ the repository root directory containing the `llama.cpp/` folder.
 - Python 3.10+
 - `gradio>=5.50.0`
 - `openai>=1.0.0`
+- `openai-whisper` (for local ASR transcription)
+- `ffmpeg` installed on the system (required by OpenAI Whisper)
 - llama.cpp built with `GGML_CUDA=ON`
 - NVIDIA GPU with CUDA drivers
 
