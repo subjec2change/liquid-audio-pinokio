@@ -24,11 +24,6 @@ The LFM2.5-Audio-1.5B model supports interleaved text and audio generation, enab
 
 ## Installation
 
-### Using Pinokio
-
-1. **Install** the app through Pinokio
-2. Click **"Start"** to launch the Gradio interface
-3. Open the web UI from the Pinokio interface
 
 ### Manual Installation
 
@@ -155,14 +150,6 @@ The interface uses Gradio with PyTorch and torchaudio to load and run the LFM2.5
 - torchaudio
 - Gradio 4.0+
 - liquid-audio library
-
-## Pinokio Commands
-
-- **Install**: Sets up the Python environment and installs dependencies
-- **Start**: Launches the Gradio web interface
-- **Update**: Updates the repository
-- **Reset**: Removes the virtual environment
-- **Save Disk Space**: Deduplicates redundant library files
 
 ## Notes
 
