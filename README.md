@@ -11,7 +11,7 @@ The app exposes three tabs via a Gradio web UI:
 | Tab | Description |
 |-----|-------------|
 | 💬 Speech-to-Speech Chat | Multi-turn text/audio conversation via llama-server |
-| 📝 Automatic Speech Recognition | Send audio context to llama-server for transcription/response |
+| 📝 Automatic Speech Recognition | Local speech-to-text transcription via faster-whisper |
 | 🔊 Text-to-Speech | Generate text responses styled by voice profile |
 
 ---
@@ -60,8 +60,7 @@ huggingface-cli download \
     --local-dir ~/models
 ```
 
-Any instruction-tuned GGUF model works.  For audio transcription, use a
-multimodal model or a whisper GGUF served via llama-server.
+Any instruction-tuned GGUF model works.
 
 ---
 
@@ -122,6 +121,12 @@ Open your browser at `http://localhost:7860`.
 | `LLAMA_API_KEY` | `not-needed` | API key (dummy value; required by the OpenAI client) |
 | `LLAMA_TEMPERATURE` | `0.7` | Sampling temperature |
 | `LLAMA_MAX_TOKENS` | `512` | Maximum tokens to generate per request |
+
+### faster-whisper (ASR) configuration
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `WHISPER_MODEL_SIZE` | `base` | Whisper model size: `tiny`, `base`, `small`, `medium`, or `large-v3` |
 
 ### Multi-model configuration
 
@@ -204,10 +209,11 @@ of them simultaneously.  Strategies to reduce VRAM usage:
 
 1. Upload an audio file or record speech
 2. Click **Transcribe**
-3. View the response from llama-server
+3. View the transcription — powered locally by [faster-whisper](https://github.com/SYSTRAN/faster-whisper)
 
-> For true audio transcription, use a multimodal GGUF (e.g., whisper.cpp
-> served via llama-server) and pass the audio file path as context.
+> Set `WHISPER_MODEL_SIZE` (e.g. `small`, `medium`, `large-v3`) for higher
+> accuracy.  CUDA is used automatically when available; otherwise CPU with
+> int8 quantisation is used.
 
 ### Text-to-Speech (TTS)
 
@@ -296,6 +302,7 @@ the repository root directory containing the `llama.cpp/` folder.
 - Python 3.10+
 - `gradio>=5.50.0`
 - `openai>=1.0.0`
+- `faster-whisper>=1.0.0`
 - llama.cpp built with `GGML_CUDA=ON`
 - NVIDIA GPU with CUDA drivers
 
