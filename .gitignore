@@ -25,6 +25,7 @@ wheels/
 
 # Models directory (users may have large model files here)
 models/
+whisper-model/
 
 # Temporary files
 *.tmp

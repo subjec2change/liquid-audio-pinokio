@@ -52,6 +52,18 @@ DEFAULT_MODEL: str = MODEL_NAMES[0]
 # faster-whisper configuration (model is loaded lazily on first use)
 # ---------------------------------------------------------------------------
 WHISPER_MODEL_SIZE = os.environ.get("WHISPER_MODEL_SIZE", "base")
+# WHISPER_MODEL_PATH: path to a local CTranslate2 model directory, resolved
+# relative to the directory where app.py lives.  When the directory exists it
+# takes priority over downloading from Hugging Face.  Set to an absolute path
+# or a path relative to the app directory.  Default: "whisper-model" (i.e.
+# <app-dir>/whisper-model/).
+_APP_DIR = os.path.dirname(os.path.abspath(__file__))
+_whisper_model_path_env = os.environ.get("WHISPER_MODEL_PATH", "whisper-model")
+WHISPER_MODEL_PATH: str = (
+    _whisper_model_path_env
+    if os.path.isabs(_whisper_model_path_env)
+    else os.path.join(_APP_DIR, _whisper_model_path_env)
+)
 _whisper_device = "cuda" if torch.cuda.is_available() else "cpu"
 _whisper_compute_type = "float16" if _whisper_device == "cuda" else "int8"
 _whisper_model: WhisperModel | None = None
@@ -59,19 +71,28 @@ _whisper_model_lock = threading.Lock()
 
 
 def _get_whisper_model() -> WhisperModel:
-    """Return the faster-whisper model, loading it on first call (thread-safe)."""
+    """Return the faster-whisper model, loading it on first call (thread-safe).
+
+    Loads from WHISPER_MODEL_PATH if the directory exists, otherwise falls
+    back to downloading the WHISPER_MODEL_SIZE model from Hugging Face.
+    """
     global _whisper_model
     if _whisper_model is None:
         with _whisper_model_lock:
             if _whisper_model is None:
+                if os.path.isdir(WHISPER_MODEL_PATH):
+                    model_source = WHISPER_MODEL_PATH
+                else:
+                    model_source = WHISPER_MODEL_SIZE
                 try:
                     _whisper_model = WhisperModel(
-                        WHISPER_MODEL_SIZE, device=_whisper_device, compute_type=_whisper_compute_type
+                        model_source, device=_whisper_device, compute_type=_whisper_compute_type
                     )
                 except Exception as exc:
                     raise RuntimeError(
-                        f"Failed to load faster-whisper model '{WHISPER_MODEL_SIZE}'. "
-                        f"Check your network connection or set WHISPER_MODEL_SIZE to a valid size "
+                        f"Failed to load faster-whisper model from '{model_source}'. "
+                        f"Place a CTranslate2 Whisper model in '{WHISPER_MODEL_PATH}' "
+                        f"or set WHISPER_MODEL_SIZE to a valid size "
                         f"(tiny, base, small, medium, large-v3). Detail: {exc}"
                     ) from exc
     return _whisper_model

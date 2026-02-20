@@ -126,7 +126,26 @@ Open your browser at `http://localhost:7860`.
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `WHISPER_MODEL_SIZE` | `base` | Whisper model size: `tiny`, `base`, `small`, `medium`, or `large-v3` |
+| `WHISPER_MODEL_SIZE` | `base` | Whisper model size used when no local model directory is found: `tiny`, `base`, `small`, `medium`, or `large-v3` |
+| `WHISPER_MODEL_PATH` | `whisper-model` | Path to a local CTranslate2 Whisper model directory (relative to `app.py` or absolute). When this directory exists it is used instead of downloading from Hugging Face. |
+
+To use a local Whisper model, convert and place it next to `app.py`:
+
+```bash
+# Install the conversion tool (once)
+pip install faster-whisper ctranslate2
+
+# Convert a Whisper model to CTranslate2 format (example: large-v3)
+ct2-transformers-converter --model openai/whisper-large-v3 --output_dir whisper-model --quantization int8
+
+# The app will automatically load from ./whisper-model/ on next start
+```
+
+Or set `WHISPER_MODEL_PATH` to any existing CTranslate2 model directory:
+
+```bash
+WHISPER_MODEL_PATH=/opt/models/whisper-large-v3 python app.py --no-share
+```
 
 ### Multi-model configuration
 
