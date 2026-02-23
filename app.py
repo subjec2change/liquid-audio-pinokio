@@ -1,9 +1,13 @@
+import os
+os.environ["HF_HUB_OFFLINE"] = "1"
+os.environ["TRANSFORMERS_OFFLINE"] = "1"
+
+import sys
 import gradio as gr
 from openai import OpenAI, APIConnectionError
-import os
 import json
 import argparse
-import whisper
+from faster_whisper import WhisperModel
 
 # ---------------------------------------------------------------------------
 # llama-server connection configuration (override with environment variables)
@@ -46,8 +50,32 @@ else:
 MODEL_NAMES: list[str] = list(LLAMA_MODELS.keys())
 DEFAULT_MODEL: str = MODEL_NAMES[0]
 
-WHISPER_MODEL_SIZE = os.environ.get("WHISPER_MODEL_SIZE", "base")
-whisper_model = whisper.load_model(WHISPER_MODEL_SIZE)
+ASR_MODEL_PATH = os.environ.get("ASR_MODEL_PATH", "./models/faster-whisper-large-v3")
+ASR_DEVICE = os.environ.get("ASR_DEVICE", "auto")
+ASR_COMPUTE_TYPE = os.environ.get("ASR_COMPUTE_TYPE", "float16")
+ASR_BEAM_SIZE = int(os.environ.get("ASR_BEAM_SIZE", "5"))
+
+# Allow --asr-model-path CLI argument to override ASR_MODEL_PATH before model loading
+_asr_argv_path = None
+for _i, _arg in enumerate(sys.argv[:-1]):
+    if _arg == "--asr-model-path":
+        _asr_argv_path = sys.argv[_i + 1]
+        break
+if _asr_argv_path is not None:
+    ASR_MODEL_PATH = _asr_argv_path
+
+if not os.path.isdir(ASR_MODEL_PATH):
+    raise SystemExit(
+        f"Error: ASR model directory not found: {ASR_MODEL_PATH!r}\n"
+        "Please download the faster-whisper model on a machine with internet access and copy it over:\n"
+        "  huggingface-cli download Systran/faster-whisper-large-v3 "
+        "--local-dir ./models/faster-whisper-large-v3\n"
+        "  # or: git clone https://huggingface.co/Systran/faster-whisper-large-v3 "
+        "./models/faster-whisper-large-v3\n"
+        "See LOCAL_MODEL_SETUP.md for full instructions."
+    )
+
+whisper_model = WhisperModel(ASR_MODEL_PATH, device=ASR_DEVICE, compute_type=ASR_COMPUTE_TYPE)
 
 _SERVER_UNAVAILABLE_MSG = (
     "⚠️ Cannot connect to llama-server at {url}.\n"
@@ -88,10 +116,13 @@ def speech_to_speech_chat(audio_input, text_input, chat_history, system_prompt, 
 
         user_message = text_input or ""
         if audio_input is not None:
-            # Note: llama-server cannot process raw audio without a multimodal
-            # GGUF model (e.g. whisper-based).  The tag below is a text-only
-            # placeholder so the model is at least aware audio was provided.
-            user_message = f"[Audio input received] {user_message}".strip()
+            try:
+                segments, info = whisper_model.transcribe(audio_input, beam_size=ASR_BEAM_SIZE)
+                transcript = " ".join(seg.text for seg in segments).strip()
+                if transcript:
+                    user_message = f"{transcript} {user_message}".strip()
+            except Exception as e:
+                print(f"Warning: audio transcription failed: {e}", file=sys.stderr)
 
         if not user_message:
             yield "Please provide text or audio input.", chat_history
@@ -126,19 +157,23 @@ def speech_to_speech_chat(audio_input, text_input, chat_history, system_prompt, 
 
 
 def asr_transcription(audio_input, model_name):
-    """Transcribe audio using OpenAI Whisper locally."""
+    """Transcribe audio using faster-whisper locally (offline)."""
     try:
         if audio_input is None:
             yield "Please provide an audio input."
             return
 
-        result = whisper_model.transcribe(audio_input)
-        transcript = result.get("text", "").strip()
+        segments, info = whisper_model.transcribe(audio_input, beam_size=ASR_BEAM_SIZE)
+        transcript = " ".join(seg.text for seg in segments).strip()
 
         if not transcript:
             yield "No speech detected in the audio."
         else:
-            yield transcript
+            yield (
+                f"{transcript}\n\n"
+                f"[Detected language: {info.language} "
+                f"(probability: {info.language_probability:.2f})]"
+            )
 
     except Exception as e:
         yield f"Transcription error: {str(e)}"
@@ -204,6 +239,10 @@ def create_ui():
         gr.Markdown(
             "Speech-to-Speech, ASR, and TTS via a local "
             "[llama-server](https://github.com/ggerganov/llama.cpp) endpoint"
+        )
+        gr.Markdown(
+            f"🔒 **Offline mode** — ASR powered by faster-whisper "
+            f"(model: `{ASR_MODEL_PATH}`, device: `{ASR_DEVICE}`, compute: `{ASR_COMPUTE_TYPE}`)"
         )
 
         with gr.Tabs():
@@ -288,8 +327,7 @@ def create_ui():
                     "**How to use:**\n"
                     "1. Select a model from the dropdown\n"
                     "2. Upload an audio file or record speech\n"
-                    "3. Click Transcribe — for full audio transcription use a "
-                    "multimodal or whisper GGUF model with llama-server"
+                    "3. Click Transcribe — powered by faster-whisper (offline)"
                 )
 
             # TTS Tab
@@ -351,6 +389,12 @@ if __name__ == "__main__":
         "--no-share",
         action="store_true",
         help="Run locally without creating a public shareable link (default: share is enabled).",
+    )
+    parser.add_argument(
+        "--asr-model-path",
+        type=str,
+        default=None,
+        help="Path to pre-downloaded faster-whisper model directory (overrides ASR_MODEL_PATH env var).",
     )
     args = parser.parse_args()
 
