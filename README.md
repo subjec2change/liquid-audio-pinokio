@@ -10,8 +10,8 @@ The app exposes three tabs via a Gradio web UI:
 
 | Tab | Description |
 |-----|-------------|
-| 💬 Speech-to-Speech Chat | Multi-turn text/audio conversation via llama-server |
-| 📝 Automatic Speech Recognition | Send audio context to llama-server for transcription/response |
+| 💬 Speech-to-Speech Chat | Multi-turn text/audio conversation via llama-server (audio transcribed locally by faster-whisper) |
+| 📝 Automatic Speech Recognition | Fully offline transcription powered by faster-whisper (no llama-server required) |
 | 🔊 Text-to-Speech | Generate text responses styled by voice profile |
 
 ---
@@ -24,7 +24,7 @@ The app exposes three tabs via a Gradio web UI:
 - NVIDIA GPU with CUDA 12.x drivers installed
 - `cmake` ≥ 3.21, `gcc`/`g++` ≥ 11, `git`
 - Python 3.10+
-- `ffmpeg` installed on the system (required by OpenAI Whisper for audio decoding)
+- `ffmpeg` installed on the system (required by faster-whisper for audio decoding)
 
 ---
 
@@ -61,8 +61,11 @@ huggingface-cli download \
     --local-dir ~/models
 ```
 
-Any instruction-tuned GGUF model works.  For audio transcription, use a
-multimodal model or a whisper GGUF served via llama-server.
+Any instruction-tuned GGUF model works.
+
+> **ASR note:** Audio transcription is handled locally by **faster-whisper** (not llama-server).
+> See [LOCAL_MODEL_SETUP.md](LOCAL_MODEL_SETUP.md) for instructions on downloading the
+> faster-whisper model to `./models/faster-whisper-large-v3-turbo` before starting the app.
 
 ---
 
@@ -110,6 +113,14 @@ python app.py --no-share
 
 Open your browser at `http://localhost:7860`.
 
+> **Note:** The app requires the faster-whisper ASR model to be present locally before starting.
+> If you see `Error: ASR model directory not found`, follow the steps in
+> [LOCAL_MODEL_SETUP.md](LOCAL_MODEL_SETUP.md) to download it.
+> You can also override the path at launch:
+> ```bash
+> python app.py --no-share --asr-model-path /path/to/faster-whisper-large-v3-turbo
+> ```
+
 ---
 
 ## Environment Variables
@@ -128,7 +139,15 @@ Open your browser at `http://localhost:7860`.
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `WHISPER_MODEL_SIZE` | `base` | OpenAI Whisper model size for ASR (`tiny`, `base`, `small`, `medium`, `large`) |
+| `ASR_MODEL_PATH` | `./models/faster-whisper-large-v3-turbo` | Path to local faster-whisper model directory |
+| `ASR_DEVICE` | `auto` | Inference device: `auto`, `cpu`, or `cuda` |
+| `ASR_COMPUTE_TYPE` | `float16` | Compute type: `float16`, `int8`, `int8_float16`, etc. |
+| `ASR_BEAM_SIZE` | `5` | Beam size for transcription decoding |
+
+> **Offline enforcement:** `HF_HUB_OFFLINE=1` and `TRANSFORMERS_OFFLINE=1` are set automatically
+> at startup so no network calls are made, even by transitive dependencies.
+> If `ASR_MODEL_PATH` does not exist, the app exits immediately with setup instructions.
+> See [LOCAL_MODEL_SETUP.md](LOCAL_MODEL_SETUP.md) for model download steps.
 
 ### Multi-model configuration
 
@@ -204,14 +223,15 @@ of them simultaneously.  Strategies to reduce VRAM usage:
 1. Upload audio or record a message using your microphone
 2. Optionally add text input alongside audio
 3. (Optional) Customise the system prompt for specific behaviours
-4. Click **Send** to get a streamed text response from llama-server
+4. Click **Send** — audio is transcribed locally by faster-whisper, then the transcript is sent to llama-server
 5. Continue the conversation — your chat history is preserved
 
 ### Automatic Speech Recognition (ASR)
 
 1. Upload an audio file or record speech
 2. Click **Transcribe**
-3. The audio is transcribed locally using OpenAI Whisper (no llama-server required for this tab)
+3. The audio is transcribed locally using **faster-whisper** (fully offline — no llama-server required)
+4. The output includes the transcript and detected language with confidence probability
 
 ### Text-to-Speech (TTS)
 
@@ -278,6 +298,19 @@ endpoint exposed by the selected llama-server instance.
 
 ## Troubleshooting
 
+### "Error: ASR model directory not found"
+
+Download the faster-whisper model on a machine with internet access and copy it to the expected
+location before starting the app:
+
+```bash
+huggingface-cli download Systran/faster-whisper-large-v3-turbo \
+    --local-dir ./models/faster-whisper-large-v3-turbo
+```
+
+Or use a custom path and pass it via `--asr-model-path` or `ASR_MODEL_PATH`.
+See [LOCAL_MODEL_SETUP.md](LOCAL_MODEL_SETUP.md) for full details.
+
 ### "Cannot connect to llama-server"
 
 Make sure `llama-server` is running and listening on the URL configured for
@@ -300,8 +333,8 @@ the repository root directory containing the `llama.cpp/` folder.
 - Python 3.10+
 - `gradio>=5.50.0`
 - `openai>=1.0.0`
-- `openai-whisper` (for local ASR transcription)
-- `ffmpeg` installed on the system (required by OpenAI Whisper)
+- `faster-whisper>=1.0.0` (for fully offline local ASR transcription)
+- `ffmpeg` installed on the system (required by faster-whisper for audio decoding)
 - llama.cpp built with `GGML_CUDA=ON`
 - NVIDIA GPU with CUDA drivers
 

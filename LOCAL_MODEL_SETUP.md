@@ -125,3 +125,73 @@ python app.py --model-path /path/to/different/model/version
 - Model files can be large (1.5GB+), so ensure you have sufficient disk space
 - First-time local loading may still take a few seconds to load weights into memory
 - GPU is recommended for best performance
+
+---
+
+## ASR Model Setup (faster-whisper)
+
+The app uses [faster-whisper](https://github.com/SYSTRAN/faster-whisper) (CTranslate2-based) for
+Automatic Speech Recognition. This runs **fully offline** — no internet access is needed at
+runtime.
+
+### Download the ASR Model (on a machine with internet access)
+
+**Option 1: Hugging Face CLI (recommended)**
+
+```bash
+pip install huggingface-hub
+huggingface-cli download Systran/faster-whisper-large-v3-turbo \
+    --local-dir ./models/faster-whisper-large-v3-turbo
+```
+
+**Option 2: Git clone**
+
+```bash
+git lfs install
+git clone https://huggingface.co/Systran/faster-whisper-large-v3-turbo \
+    ./models/faster-whisper-large-v3-turbo
+```
+
+Copy the downloaded directory to the machine running the app before launching.
+
+### Expected Directory Structure
+
+```
+liquid-audio-pinokio/
+├── app.py
+├── models/
+│   └── faster-whisper-large-v3-turbo/
+│       ├── config.json
+│       ├── model.bin
+│       ├── tokenizer.json
+│       ├── vocabulary.txt
+│       ├── preprocessor_config.json
+│       ├── special_tokens_map.json
+│       └── ... (other model files)
+└── ...
+```
+
+### ASR Environment Variables
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `ASR_MODEL_PATH` | `./models/faster-whisper-large-v3-turbo` | Path to the local faster-whisper model directory |
+| `ASR_DEVICE` | `auto` | Inference device: `auto`, `cpu`, or `cuda` |
+| `ASR_COMPUTE_TYPE` | `float16` | Compute type: `float16`, `int8`, `int8_float16`, etc. |
+| `ASR_BEAM_SIZE` | `5` | Beam size for transcription decoding |
+
+You can also pass `--asr-model-path` as a CLI argument (highest priority):
+
+```bash
+python app.py --asr-model-path /path/to/faster-whisper-large-v3-turbo
+```
+
+### Offline Enforcement
+
+`HF_HUB_OFFLINE=1` and `TRANSFORMERS_OFFLINE=1` are set automatically as the very first action in
+`app.py`, before any library imports. This prevents accidental network calls even if a dependency
+attempts to fetch model metadata from Hugging Face.
+
+If the `ASR_MODEL_PATH` directory does not exist at startup, the app exits immediately with a clear
+error message explaining how to obtain the model.
+
