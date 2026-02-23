@@ -1,6 +1,6 @@
-# Liquid Audio
+# Liquid Audio I Guess?
 
-🎙️ **Liquid Audio** — A Gradio web interface powered by a locally running
+🎙️ **Liquid Audio  Web Transcritpion** — A Gradio web interface powered by a locally running
 [llama-server](https://github.com/ggerganov/llama.cpp) (llama.cpp) endpoint.
 Runs entirely on-device with CUDA-accelerated GGUF models — no cloud API required.
 
