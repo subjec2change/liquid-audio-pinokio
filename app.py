@@ -50,7 +50,7 @@ else:
 MODEL_NAMES: list[str] = list(LLAMA_MODELS.keys())
 DEFAULT_MODEL: str = MODEL_NAMES[0]
 
-ASR_MODEL_PATH = os.environ.get("ASR_MODEL_PATH", "./models/faster-whisper-large-v3-turbo")
+ASR_MODEL_PATH = os.environ.get("ASR_MODEL_PATH", "./models/faster-whisper-large-v3")
 ASR_DEVICE = os.environ.get("ASR_DEVICE", "auto")
 ASR_COMPUTE_TYPE = os.environ.get("ASR_COMPUTE_TYPE", "float16")
 ASR_BEAM_SIZE = int(os.environ.get("ASR_BEAM_SIZE", "5"))
@@ -68,10 +68,10 @@ if not os.path.isdir(ASR_MODEL_PATH):
     raise SystemExit(
         f"Error: ASR model directory not found: {ASR_MODEL_PATH!r}\n"
         "Please download the faster-whisper model on a machine with internet access and copy it over:\n"
-        "  huggingface-cli download Systran/faster-whisper-large-v3-turbo "
-        "--local-dir ./models/faster-whisper-large-v3-turbo\n"
-        "  # or: git clone https://huggingface.co/Systran/faster-whisper-large-v3-turbo "
-        "./models/faster-whisper-large-v3-turbo\n"
+        "  huggingface-cli download Systran/faster-whisper-large-v3 "
+        "--local-dir ./models/faster-whisper-large-v3\n"
+        "  # or: git clone https://huggingface.co/Systran/faster-whisper-large-v3 "
+        "./models/faster-whisper-large-v3\n"
         "See LOCAL_MODEL_SETUP.md for full instructions."
     )
 
