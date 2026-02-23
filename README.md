@@ -10,9 +10,7 @@ The app exposes three tabs via a Gradio web UI:
 
 | Tab | Description |
 |-----|-------------|
-| 💬 Speech-to-Speech Chat | Multi-turn text/audio conversation via llama-server (audio transcribed locally by faster-whisper) |
 | 📝 Automatic Speech Recognition | Fully offline transcription powered by faster-whisper (no llama-server required) |
-| 🔊 Text-to-Speech | Generate text responses styled by voice profile |
 
 ---
 
