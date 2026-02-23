@@ -140,16 +140,16 @@ runtime.
 
 ```bash
 pip install huggingface-hub
-huggingface-cli download Systran/faster-whisper-large-v3-turbo \
-    --local-dir ./models/faster-whisper-large-v3-turbo
+huggingface-cli download Systran/faster-whisper-large-v3 \
+    --local-dir ./models/faster-whisper-large-v3
 ```
 
 **Option 2: Git clone**
 
 ```bash
 git lfs install
-git clone https://huggingface.co/Systran/faster-whisper-large-v3-turbo \
-    ./models/faster-whisper-large-v3-turbo
+git clone https://huggingface.co/Systran/faster-whisper-large-v3 \
+    ./models/faster-whisper-large-v3
 ```
 
 Copy the downloaded directory to the machine running the app before launching.
@@ -160,7 +160,7 @@ Copy the downloaded directory to the machine running the app before launching.
 liquid-audio-pinokio/
 ├── app.py
 ├── models/
-│   └── faster-whisper-large-v3-turbo/
+│   └── faster-whisper-large-v3/
 │       ├── config.json
 │       ├── model.bin
 │       ├── tokenizer.json
@@ -175,7 +175,7 @@ liquid-audio-pinokio/
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `ASR_MODEL_PATH` | `./models/faster-whisper-large-v3-turbo` | Path to the local faster-whisper model directory |
+| `ASR_MODEL_PATH` | `./models/faster-whisper-large-v3` | Path to the local faster-whisper model directory |
 | `ASR_DEVICE` | `auto` | Inference device: `auto`, `cpu`, or `cuda` |
 | `ASR_COMPUTE_TYPE` | `float16` | Compute type: `float16`, `int8`, `int8_float16`, etc. |
 | `ASR_BEAM_SIZE` | `5` | Beam size for transcription decoding |
@@ -183,7 +183,7 @@ liquid-audio-pinokio/
 You can also pass `--asr-model-path` as a CLI argument (highest priority):
 
 ```bash
-python app.py --asr-model-path /path/to/faster-whisper-large-v3-turbo
+python app.py --asr-model-path /path/to/faster-whisper-large-v3
 ```
 
 ### Offline Enforcement
