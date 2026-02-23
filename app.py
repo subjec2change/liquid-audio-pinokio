@@ -301,8 +301,8 @@ def create_ui():
         f"`{name}` → {url}" for name, url in LLAMA_MODELS.items()
     )
 
-    with gr.Blocks(title="Liquid Audio UI") as demo:
-        gr.Markdown("# 🎙️ Liquid Audio — llama-server backend")
+    with gr.Blocks(title="BJC Public Safety Transcribe UI") as demo:
+        gr.Markdown("# 👮🗒️ Public Safety Report Transcription — llama-server backend")
         gr.Markdown(
             "Speech-to-Speech, ASR, and TTS via a local "
             "[llama-server](https://github.com/ggerganov/llama.cpp) endpoint"
