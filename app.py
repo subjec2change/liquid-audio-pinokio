@@ -85,6 +85,31 @@ _SERVER_UNAVAILABLE_MSG = (
     "See README.md for full setup instructions."
 )
 
+POLICE_REPORT_CLEANUP_PROMPT = """\
+You are a professional police-report transcription editor. Your ONLY job is to \
+clean up the raw speech-to-text transcript provided by the user. You must:
+
+1. Fix all capitalization — proper nouns, start of sentences, acronyms (e.g., DUI, \
+DOB, VIN, ID, SSN, EMS, DOA, APB, BOLO), titles (Officer, Sergeant, Detective), \
+and legal/agency names.
+2. Add correct punctuation — periods, commas, colons, semicolons, and quotation \
+marks where appropriate.
+3. Fix grammar — subject-verb agreement, tense consistency, articles, and \
+prepositions.
+4. Preserve all factual content EXACTLY — do NOT add, remove, rephrase, \
+summarize, or editorialize any information. Do NOT infer or fill in missing \
+details.
+5. Structure the text into clear paragraphs where natural breaks occur (e.g., \
+between narrative sections, witness statements, evidence descriptions).
+6. Use standard law-enforcement report conventions:
+   - Times in 24-hour format when stated (e.g., 2345 hours).
+   - Dates in MM/DD/YYYY format when stated.
+   - Addresses, badge numbers, case numbers, and statute references formatted \
+consistently.
+7. Return ONLY the cleaned-up transcript. Do NOT include any commentary, \
+preamble, or explanation.\
+"""
+
 
 def get_client(model_name: str) -> tuple[OpenAI, str]:
     """Return an (OpenAI client, model name) pair for the given model alias."""
@@ -157,22 +182,64 @@ def speech_to_speech_chat(audio_input, text_input, chat_history, system_prompt, 
 
 
 def asr_transcription(audio_input, model_name):
-    """Transcribe audio using faster-whisper locally (offline)."""
+    """Transcribe audio using faster-whisper locally (offline),
+    then optionally polish via llama-server for police-report formatting."""
     try:
         if audio_input is None:
             yield "Please provide an audio input."
             return
 
+        # --- Step 1: raw transcription (offline, faster-whisper) -----------
         segments, info = whisper_model.transcribe(audio_input, beam_size=ASR_BEAM_SIZE)
         transcript = " ".join(seg.text for seg in segments).strip()
 
         if not transcript:
             yield "No speech detected in the audio."
-        else:
+            return
+
+        lang_tag = (
+            f"[Detected language: {info.language} "
+            f"(probability: {info.language_probability:.2f})]"
+        )
+
+        # Show raw transcript immediately so the user sees progress
+        yield f"**Raw transcript (processing…)**\n\n{transcript}\n\n{lang_tag}"
+
+        # --- Step 2: polish via llama-server -------------------------------
+        try:
+            client, model = get_client(model_name)
+
+            messages = [
+                {"role": "system", "content": POLICE_REPORT_CLEANUP_PROMPT},
+                {"role": "user",   "content": transcript},
+            ]
+
+            polished = ""
+            with client.chat.completions.create(
+                model=model,
+                messages=messages,
+                temperature=0.2,          # low creativity — faithful cleanup
+                max_tokens=LLAMA_MAX_TOKENS,
+                stream=True,
+            ) as stream:
+                for chunk in stream:
+                    if not chunk.choices:
+                        continue
+                    delta = chunk.choices[0].delta.content
+                    if delta:
+                        polished += delta
+                        yield (
+                            f"**Polished report:**\n\n{polished}\n\n---\n"
+                            f"<details><summary>Raw transcript</summary>\n\n"
+                            f"{transcript}\n\n</details>\n\n{lang_tag}"
+                        )
+
+        except APIConnectionError:
+            # llama-server not running — fall back to raw transcript
             yield (
-                f"{transcript}\n\n"
-                f"[Detected language: {info.language} "
-                f"(probability: {info.language_probability:.2f})]"
+                f"{transcript}\n\n{lang_tag}\n\n"
+                f"⚠️ Could not connect to llama-server for report cleanup. "
+                f"Showing raw transcript only."
             )
 
     except Exception as e:
@@ -327,7 +394,9 @@ def create_ui():
                     "**How to use:**\n"
                     "1. Select a model from the dropdown\n"
                     "2. Upload an audio file or record speech\n"
-                    "3. Click Transcribe — powered by faster-whisper (offline)"
+                    "3. Click Transcribe — audio is transcribed offline by faster-whisper, "
+                    "then polished into professional police-report format via llama-server\n"
+                    "4. The raw transcript is preserved in a collapsible section below the polished report"
                 )
 
             # TTS Tab
