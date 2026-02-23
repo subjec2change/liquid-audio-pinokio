@@ -65,7 +65,7 @@ Any instruction-tuned GGUF model works.
 
 > **ASR note:** Audio transcription is handled locally by **faster-whisper** (not llama-server).
 > See [LOCAL_MODEL_SETUP.md](LOCAL_MODEL_SETUP.md) for instructions on downloading the
-> faster-whisper model to `./models/faster-whisper-large-v3-turbo` before starting the app.
+> faster-whisper model to `./models/faster-whisper-large-v3` before starting the app.
 
 ---
 
@@ -118,7 +118,7 @@ Open your browser at `http://localhost:7860`.
 > [LOCAL_MODEL_SETUP.md](LOCAL_MODEL_SETUP.md) to download it.
 > You can also override the path at launch:
 > ```bash
-> python app.py --no-share --asr-model-path /path/to/faster-whisper-large-v3-turbo
+> python app.py --no-share --asr-model-path /path/to/faster-whisper-large-v3
 > ```
 
 ---
@@ -139,7 +139,7 @@ Open your browser at `http://localhost:7860`.
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `ASR_MODEL_PATH` | `./models/faster-whisper-large-v3-turbo` | Path to local faster-whisper model directory |
+| `ASR_MODEL_PATH` | `./models/faster-whisper-large-v3` | Path to local faster-whisper model directory |
 | `ASR_DEVICE` | `auto` | Inference device: `auto`, `cpu`, or `cuda` |
 | `ASR_COMPUTE_TYPE` | `float16` | Compute type: `float16`, `int8`, `int8_float16`, etc. |
 | `ASR_BEAM_SIZE` | `5` | Beam size for transcription decoding |
@@ -304,8 +304,8 @@ Download the faster-whisper model on a machine with internet access and copy it 
 location before starting the app:
 
 ```bash
-huggingface-cli download Systran/faster-whisper-large-v3-turbo \
-    --local-dir ./models/faster-whisper-large-v3-turbo
+huggingface-cli download Systran/faster-whisper-large-v3 \
+    --local-dir ./models/faster-whisper-large-v3
 ```
 
 Or use a custom path and pass it via `--asr-model-path` or `ASR_MODEL_PATH`.
